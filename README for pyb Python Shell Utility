@@ -1,0 +1,82 @@
+🐍 pyb - Python Shell Bridge
+Part of the EnvSetup Tools Collection
+
+pyb is a lightweight Python utility designed to simplify the execution of complex, multiline shell commands directly from your Python scripts or interactive console sessions. It acts as a seamless bridge between Python's convenience and the power of your native shell environment, serving as one of many specialized tools in this repository.
+
+🔗 Project Repository
+This tool and others related to environment setup are maintained at:
+https://github.com/rakesh7421/Envsetup
+
+✨ Features
+Seamless Execution: Run any shell command (Bash, Zsh, CMD, PowerShell) directly from a Python function call.
+
+Multiline Support: Easily execute entire shell scripts using Python's triple-quoted strings, perfect for complex automation tasks.
+
+Windows Compatibility Fix: Automatically handles platform differences (converting newlines to & on Windows) to ensure multiline scripts run sequentially and correctly on any OS.
+
+Clean Output: Prints only the standard output (stdout) of the shell command, keeping your Python terminal clean.
+
+🚀 Installation
+Since pyb is a utility you are managing locally, you can ensure it's accessible by placing the pyb directory (containing __init__.py) within your Python environment's site-packages path or ensuring the directory is on your system's PYTHONPATH.
+
+💡 Usage
+1. Basic Single-Line Command
+from pyb import pyb
+
+# Execute a standard shell command
+exit_code = pyb("echo Hello from the shell!")
+print(f"Command finished with exit code: {exit_code}")
+# Output:
+# Hello from the shell!
+# Command finished with exit code: 0
+
+
+2. Multiline (Script) Execution
+Use triple quotes ('''...''') to pass a complex script. pyb automatically handles the line breaks for sequential execution, even on Windows.
+
+from pyb import pyb
+
+# Example: Running a multiline script to change directory and list contents
+script = '''
+echo Starting script...
+cd /tmp  # This path resolves correctly in your MINGW64 environment
+ls -a
+echo "Script finished!"
+'''
+
+exit_code = pyb(script)
+
+# Example Output (Clean):
+# Starting script...
+# .
+# ..
+# .flo_view
+# ... (contents of /tmp or target directory)
+# Script finished!
+
+
+3. Error Handling
+If a command fails (returns a non-zero exit code), pyb prints the error and returns the corresponding exit code.
+
+from pyb import pyb
+
+# Example: Running a failing command
+pyb("non_existent_command")
+# Output:
+# Error executing command: Command 'non_existent_command' returned non-zero exit status 1.
+# Stderr: bash: non_existent_command: command not found
+
+
+🛠️ Implementation Details (for Developers)
+The core logic resides in how pyb handles the input string:
+
+It strips leading/trailing whitespace from the multiline input.
+
+If running on Windows (sys.platform.startswith('win') or MINGW64), it replaces all newline characters (\n) with the Windows sequential command separator (&).
+
+It then executes this single, shell-compatible string using subprocess.run(final_command, shell=True).
+
+This ensures that whether the user enters cmd1\ncmd2 or cmd1 & cmd2, the execution is sequential on Windows.
+
+📝 License
+This project is open-source and available under the MIT License.
