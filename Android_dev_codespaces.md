@@ -1,8 +1,45 @@
 # CODESPACES
-## JAVA AND ANDOID HOME, SDK, COMMANDLINETOOLS
+## JAVA AND ANDOID HOME, SDK, COMMANDLINETOOLS and REMOVE OLD JAVA 25.0.1
 ```
 #!/usr/bin/env bash
 set -e
+
+TARGET_VERSION="25.0.1"
+
+echo "==> Listing all Java versions installed:"
+for j in $(which -a java); do
+    echo "$j -> $($j -version 2>&1 | head -n 1)"
+done
+
+echo "==> Removing any references to version $TARGET_VERSION..."
+
+# Remove from PATH / environment files
+for file in "$HOME/.bashrc" "$HOME/.zshrc"; do
+  if grep -q "$TARGET_VERSION" "$file"; then
+    echo "==> Removing $TARGET_VERSION references from $file"
+    sed -i "/$TARGET_VERSION/d" "$file"
+  fi
+done
+
+# Remove from local.properties
+if [ -f local.properties ] && grep -q "$TARGET_VERSION" local.properties; then
+  echo "==> Removing $TARGET_VERSION from local.properties"
+  sed -i "/$TARGET_VERSION/d" local.properties
+fi
+
+# Remove any directories with 25.0.1 under JDK or Android SDK
+for dir in $(find /usr/lib/jvm "$HOME/android-sdk" -type d -name "*$TARGET_VERSION*" 2>/dev/null); do
+  echo "==> Deleting directory $dir"
+  sudo rm -rf "$dir"
+done
+
+# Remove any java symlinks pointing to 25.0.1
+for java_path in $(which -a java); do
+  if readlink -f "$java_path" | grep -q "$TARGET_VERSION"; then
+    echo "==> Removing symlink $java_path pointing to $TARGET_VERSION"
+    sudo rm -f "$java_path"
+  fi
+done
 
 ### CONFIG
 JAVA_HOME_DIR="/usr/lib/jvm/java-17-openjdk-amd64"
@@ -114,5 +151,10 @@ echo "==> Resetting Gradle"
 ./gradlew --stop || true
 ./gradlew clean
 
-echo "==> Setup complete"
+echo "==> Setup complete. Restart the shell session:"
+echo "    source ~/.bashrc"
+echo "    source ~/.zshrc"
+restarting the machine session"
+source ~/.bashrc
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 ```
