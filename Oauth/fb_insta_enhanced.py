@@ -372,80 +372,111 @@ def main():
         print("✅ OAuth handler initialized successfully")
 
         # Let user choose platform
-        platform = input("Choose platform (facebook/instagram): ").strip().lower()
-        if platform not in ['facebook', 'instagram']:
-            print("❌ Invalid platform. Please use 'facebook' or 'instagram'")
-            return
+        print("\n🎯 Choose authentication option:")
+        print("1. Facebook only")
+        print("2. Instagram only")
+        print("3. Both Facebook and Instagram")
 
-        # Generate and display auth URL
-        auth_url = oauth.get_auth_url(platform)
-        print(f"\n🔗 Authorization URL: {auth_url}")
+        choice = input("Enter your choice (1/2/3): ").strip()
 
-        # Open in browser
-        try:
-            webbrowser.open(auth_url)
-            print("🌐 Opening authorization URL in your browser...")
-        except:
-            print("📝 Please copy and paste the URL above into your browser")
-
-        # Get authorization code from user
-        auth_code = input("\n📥 After authorizing, paste the full redirect URL here: ").strip()
-
-        if not auth_code:
-            print("❌ No URL provided")
-            return
-
-        # Extract code from URL
-        try:
-            parsed_url = urlparse(auth_code)
-            query_params = parse_qs(parsed_url.query)
-            code = query_params.get('code', [None])[0]
-
-            if not code:
-                print("❌ No authorization code found in the URL")
-                return
-        except:
-            # Maybe user pasted just the code
-            code = auth_code
-
-        print(f"\n🔑 Using authorization code: {code[:20]}... (truncated)")
-
-        # Complete the full OAuth flow
-        print("\n🚀 Completing OAuth flow...")
-        result = oauth.complete_oauth_flow(code, platform)
-
-        if result['success']:
-            print("\n📊 OAuth Flow Results:")
-            print(f"Platform: {result['platform']}")
-            print(f"User Access Token: {result['tokens'].get('user_access_token', 'N/A')[:20]}...")
-
-            if platform == 'instagram' and result['accounts'].get('instagram'):
-                insta_accounts = result['accounts']['instagram']
-                print(f"Instagram Accounts Found: {len(insta_accounts)}")
-
-                for i, account in enumerate(insta_accounts):
-                    print(f"\nInstagram Account {i+1}:")
-                    print(f"  ID: {account['id']}")
-                    print(f"  Connected to Page: {account['page_name']} (ID: {account['page_id']})")
-                    print(f"  Page Access Token: {account['page_access_token'][:20]}...")
-
-                if 'instagram_user_info' in result['accounts']:
-                    user_info = result['accounts']['instagram_user_info']
-                    print(f"\nInstagram User Info:")
-                    print(f"  Username: {user_info.get('username', 'N/A')}")
-                    print(f"  Followers: {user_info.get('followers_count', 'N/A')}")
-                    print(f"  Media Count: {user_info.get('media_count', 'N/A')}")
-
-            print("\n🔄 Token Refresh Information:")
-            print("This token is a long-lived token (60 days)")
-            print("You can refresh it using the refresh_access_token() method")
-            print("Facebook automatically refreshes tokens when they're used and still valid")
-
-            # Save tokens to file for later use
-            save_tokens_to_file(result)
-
+        if choice == '1':
+            platform = 'facebook'
+        elif choice == '2':
+            platform = 'instagram'
+        elif choice == '3':
+            platform = 'both'
         else:
-            print(f"❌ OAuth flow failed: {result.get('error', 'Unknown error')}")
+            print("❌ Invalid choice. Please use 1, 2, or 3")
+            return
+
+        # Handle both platforms case
+        results = []
+        if platform == 'both':
+            platforms_to_auth = ['facebook', 'instagram']
+        else:
+            platforms_to_auth = [platform]
+
+        for current_platform in platforms_to_auth:
+            print(f"\n🔄 Processing {current_platform} authentication...")
+
+            # Generate and display auth URL
+            auth_url = oauth.get_auth_url(current_platform)
+            print(f"\n🔗 {current_platform.capitalize()} Authorization URL: {auth_url}")
+
+            # Open in browser
+            try:
+                webbrowser.open(auth_url)
+                print("🌐 Opening authorization URL in your browser...")
+            except:
+                print("📝 Please copy and paste the URL above into your browser")
+
+            # Get authorization code from user
+            auth_code = input(f"\n📥 After authorizing {current_platform}, paste the full redirect URL here: ").strip()
+
+            if not auth_code:
+                print("❌ No URL provided")
+                continue
+
+            # Extract code from URL
+            try:
+                parsed_url = urlparse(auth_code)
+                query_params = parse_qs(parsed_url.query)
+                code = query_params.get('code', [None])[0]
+
+                if not code:
+                    print("❌ No authorization code found in the URL")
+                    continue
+            except:
+                # Maybe user pasted just the code
+                code = auth_code
+
+            print(f"\n🔑 Using authorization code: {code[:20]}... (truncated)")
+
+            # Complete the full OAuth flow
+            print(f"\n🚀 Completing {current_platform} OAuth flow...")
+            result = oauth.complete_oauth_flow(code, current_platform)
+            results.append((current_platform, result))
+
+        # Process and display results for all platforms
+        all_success = True
+        for current_platform, result in results:
+            if result['success']:
+                print(f"\n📊 {current_platform.capitalize()} OAuth Flow Results:")
+                print(f"Platform: {result['platform']}")
+                print(f"User Access Token: {result['tokens'].get('user_access_token', 'N/A')[:20]}...")
+
+                if current_platform == 'instagram' and result['accounts'].get('instagram'):
+                    insta_accounts = result['accounts']['instagram']
+                    print(f"Instagram Accounts Found: {len(insta_accounts)}")
+
+                    for i, account in enumerate(insta_accounts):
+                        print(f"\nInstagram Account {i+1}:")
+                        print(f"  ID: {account['id']}")
+                        print(f"  Connected to Page: {account['page_name']} (ID: {account['page_id']})")
+                        print(f"  Page Access Token: {account['page_access_token'][:20]}...")
+
+                    if 'instagram_user_info' in result['accounts']:
+                        user_info = result['accounts']['instagram_user_info']
+                        print(f"\nInstagram User Info:")
+                        print(f"  Username: {user_info.get('username', 'N/A')}")
+                        print(f"  Followers: {user_info.get('followers_count', 'N/A')}")
+                        print(f"  Media Count: {user_info.get('media_count', 'N/A')}")
+
+                print(f"\n🔄 {current_platform.capitalize()} Token Information:")
+                print("This token is a long-lived token (60 days)")
+                print("You can refresh it using the refresh_access_token() method")
+                print("Facebook automatically refreshes tokens when they're used and still valid")
+
+                # Save tokens to file for later use
+                save_tokens_to_file(result)
+            else:
+                print(f"❌ {current_platform.capitalize()} OAuth flow failed: {result.get('error', 'Unknown error')}")
+                all_success = False
+
+        if all_success and len(results) > 1:
+            print(f"\n🎉 All OAuth flows completed successfully for {len(results)} platforms!")
+        elif all_success:
+            print(f"\n🎉 OAuth flow completed successfully!")
 
     except Exception as e:
         print(f"❌ Error: {str(e)}")
