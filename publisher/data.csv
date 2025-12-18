@@ -4,3 +4,7 @@ timestamp,platform,content_hash,content_id,title,success,error,post_id
 2025-12-18T11:31:12.157863,instagram,9ca5d6e7cd4b23316d4c5043ab8a8431,9ca5d6e7cd4b2331,A Bellicose Trump Points Fingers in Defending His ,False,redundant_content,
 2025-12-18T11:31:42.511713,facebook,c9a541b63851195780cbbc280a552550,c9a541b638511957,Boys to be sent on courses to tackle misogyny in s,False,"{""error"":{""message"":""Invalid OAuth access token - Cannot parse access token"",""type"":""OAuthException"",""code"":190,""fbtrace_id"":""AZpkfVR2Hoi56II2mXEu9c5""}}",
 2025-12-18T11:31:42.511982,instagram,c9a541b63851195780cbbc280a552550,c9a541b638511957,Boys to be sent on courses to tackle misogyny in s,False,redundant_content,
+2025-12-18T11:52:55.185376,facebook,9ca5d6e7cd4b23316d4c5043ab8a8431,9ca5d6e7cd4b2331,A Bellicose Trump Points Fingers in Defending His ,False,redundant_content,
+2025-12-18T11:52:55.185643,instagram,9ca5d6e7cd4b23316d4c5043ab8a8431,9ca5d6e7cd4b2331,A Bellicose Trump Points Fingers in Defending His ,False,redundant_content,
+2025-12-18T11:53:25.186518,facebook,c9a541b63851195780cbbc280a552550,c9a541b638511957,Boys to be sent on courses to tackle misogyny in s,False,redundant_content,
+2025-12-18T11:53:25.186807,instagram,c9a541b63851195780cbbc280a552550,c9a541b638511957,Boys to be sent on courses to tackle misogyny in s,False,redundant_content,

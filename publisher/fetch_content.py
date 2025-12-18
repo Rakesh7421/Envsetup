@@ -248,7 +248,7 @@ class ContentFetcher:
 
     def _extract_image_url(self, content_item: Dict[str, Any]) -> Optional[str]:
         """
-        Extract image URL from content item.
+        Extract image URL from content item with enhanced media detection.
 
         Args:
             content_item: Content item
@@ -281,21 +281,48 @@ class ContentFetcher:
                 if enclosure.get('type', '').startswith('image/'):
                     return enclosure.get('href')
 
-        # Try to find img tags in content
+        # Enhanced HTML image extraction with multiple patterns
         content = content_item.get('content', '')
-        if '<img' in content:
-            # Simple extraction - could be improved with proper HTML parsing
-            start = content.find('src="') + 5
-            if start > 5:
-                end = content.find('"', start)
-                if end > start:
-                    return content[start:end]
+        if content:
+            # Try to find img tags with various attribute patterns
+            patterns = [
+                ('src="', '"'),          # Standard src attribute
+                ("src='", "'"),          # Single quote src attribute
+                ('data-src="', '"'),     # Lazy load data-src
+                ("data-src='", "'"),     # Lazy load data-src single quote
+                ('data-original="', '"'), # Another lazy load pattern
+                ("data-original='", "'"), # Another lazy load pattern single quote
+            ]
+
+            for start_pattern, end_pattern in patterns:
+                start = content.find(start_pattern)
+                if start > 0:
+                    start += len(start_pattern)
+                    end = content.find(end_pattern, start)
+                    if end > start:
+                        image_url = content[start:end]
+                        # Basic URL validation
+                        if image_url and (image_url.startswith('http://') or image_url.startswith('https://')):
+                            return image_url
+
+            # Try to find figure/image tags (modern HTML)
+            if '<figure' in content or '<image' in content:
+                # Look for href or xlink:href in figure/image tags
+                for pattern in ['href="', "href='", 'xlink:href="', "xlink:href='"]:
+                    start = content.find(pattern)
+                    if start > 0:
+                        start += len(pattern)
+                        end = content.find(content[start-1], start)  # Find matching quote
+                        if end > start:
+                            image_url = content[start:end]
+                            if image_url and (image_url.startswith('http://') or image_url.startswith('https://')):
+                                return image_url
 
         return None
 
     def _has_media_content(self, content_item: Dict[str, Any]) -> bool:
         """
-        Check if a content item contains media (images or videos).
+        Check if a content item contains media (images or videos) with enhanced detection.
 
         Args:
             content_item: Content item
@@ -328,10 +355,28 @@ class ContentFetcher:
                 if enclosure.get('type', '').startswith(('image/', 'video/')):
                     return True
 
-        # Try to find img/video tags in content
+        # Enhanced HTML media tag detection
         content = content_item.get('content', '')
-        if '<img' in content or '<video' in content:
-            return True
+        if content:
+            # Check for various media-related HTML tags and attributes
+            media_indicators = [
+                '<img', '<image', '<video', '<figure',
+                'src="', "src='", 'data-src="', "data-src='",
+                'data-original="', "data-original='",
+                'xlink:href="', "xlink:href='",
+                '<picture', '<source', 'poster="', "poster='"
+            ]
+
+            for indicator in media_indicators:
+                if indicator in content:
+                    return True
+
+            # Check for common image file extensions in URLs
+            image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
+            content_lower = content.lower()
+            for ext in image_extensions:
+                if ext in content_lower:
+                    return True
 
         return False
 
