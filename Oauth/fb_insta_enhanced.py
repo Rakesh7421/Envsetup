@@ -264,6 +264,22 @@ class EnhancedOAuthHandler:
             print(f"Warning: Could not refresh token: {str(e)}")
             return None
 
+    def save_tokens_to_file(self, result: Dict[str, Any], filename: str = 'oauth_tokens.json') -> None:
+        """Save tokens and account info to a file for later use"""
+        try:
+            with open(filename, 'w') as f:
+                json.dump({
+                    'user_access_token': result['tokens'].get('user_access_token'),
+                    'page_access_token': result['tokens'].get('page_access_token'),
+                    'instagram_account_id': result['accounts'].get('instagram', [{}])[0].get('id') if result['accounts'].get('instagram') else None,
+                    'page_id': result['accounts'].get('instagram', [{}])[0].get('page_id') if result['accounts'].get('instagram') else None,
+                    'platform': result['platform'],
+                    'timestamp': time.time()
+                }, f, indent=2)
+            print(f"\n💾 Tokens saved to '{filename}' for future use")
+        except Exception as e:
+            print(f"Warning: Could not save tokens to file: {str(e)}")
+
     def get_instagram_user_info(self, instagram_account_id: str) -> Dict[str, Any]:
         """
         Get detailed Instagram user information.
@@ -468,7 +484,8 @@ def main():
                 print("Facebook automatically refreshes tokens when they're used and still valid")
 
                 # Save tokens to file for later use
-                save_tokens_to_file(result)
+                filename = f"oauth_tokens_{current_platform}.json"
+                oauth.save_tokens_to_file(result, filename)
             else:
                 print(f"❌ {current_platform.capitalize()} OAuth flow failed: {result.get('error', 'Unknown error')}")
                 all_success = False
@@ -485,22 +502,6 @@ def main():
         print("FB_CLIENT_SECRET=your_facebook_client_secret")
         print("FB_REDIRECT_URI=http://localhost:5000/auth/facebook/callback")
 
-def _save_tokens_to_file(result: Dict[str, Any]) -> None:
-    """Save tokens and account info to a file for later use"""
-    try:
-        with open('oauth_tokens.json', 'w') as f:
-            import json
-            json.dump({
-                'user_access_token': result['tokens'].get('user_access_token'),
-                'page_access_token': result['tokens'].get('page_access_token'),
-                'instagram_account_id': result['accounts'].get('instagram', [{}])[0].get('id') if result['accounts'].get('instagram') else None,
-                'page_id': result['accounts'].get('instagram', [{}])[0].get('page_id') if result['accounts'].get('instagram') else None,
-                'platform': result['platform'],
-                'timestamp': time.time()
-            }, f, indent=2)
-        print("\n💾 Tokens saved to 'oauth_tokens.json' for future use")
-    except Exception as e:
-        print(f"Warning: Could not save tokens to file: {str(e)}")
 
 if __name__ == "__main__":
     main()
