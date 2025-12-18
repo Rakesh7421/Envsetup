@@ -86,11 +86,11 @@ class EnhancedOAuthHandler:
         if platform.lower() == 'facebook':
             base_url = "https://www.facebook.com/v12.0/dialog/oauth"
             redirect_uri = self.redirect_uri
-            scope = "email,public_profile,pages_show_list,pages_read_engagement"
+            scope = "email,public_profile,pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement"
         elif platform.lower() == 'instagram':
             base_url = "https://www.facebook.com/v12.0/dialog/oauth"
             redirect_uri = self.instagram_redirect_uri
-            scope = "instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,instagram_manage_insights"
+            scope = "instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,instagram_manage_insights,pages_manage_posts,pages_manage_engagement"
         else:
             raise ValueError(f"Unsupported platform: {platform}. Use 'facebook' or 'instagram'")
 
@@ -279,6 +279,112 @@ class EnhancedOAuthHandler:
             print(f"\n💾 Tokens saved to '{filename}' for future use")
         except Exception as e:
             print(f"Warning: Could not save tokens to file: {str(e)}")
+
+    def get_page_token_info(self, page_access_token: str) -> Dict[str, Any]:
+        """
+        Get detailed information about a page access token.
+
+        Args:
+            page_access_token: The page access token to inspect
+
+        Returns:
+            Dictionary containing token debug information
+        """
+        try:
+            debug_url = "https://graph.facebook.com/debug_token"
+            params = {
+                'input_token': page_access_token,
+                'access_token': self.app_access_token or f"{self.client_id}|{self.client_secret}"
+            }
+            response = requests.get(debug_url, params=params)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            raise requests.exceptions.RequestException(
+                f"Failed to get page token info: {str(e)}"
+            ) from e
+
+    def refresh_page_access_token(self, page_id: str) -> Optional[str]:
+        """
+        Refresh a page access token by refreshing the user token and getting new page token.
+
+        Args:
+            page_id: The Facebook page ID
+
+        Returns:
+            New page access token if successful, None otherwise
+        """
+        try:
+            # First refresh the user access token
+            refreshed_user_token = self.refresh_access_token()
+            if not refreshed_user_token:
+                return None
+
+            # Update the user access token
+            self.user_access_token = refreshed_user_token
+
+            # Get the refreshed page access token
+            return self.get_page_access_token(page_id)
+
+        except Exception as e:
+            print(f"❌ Failed to refresh page access token: {str(e)}")
+            return None
+
+    def check_page_token_permissions(self, page_access_token: str) -> List[str]:
+        """
+        Check what permissions a page access token has.
+
+        Args:
+            page_access_token: The page access token to check
+
+        Returns:
+            List of permission strings
+        """
+        try:
+            token_info = self.get_page_token_info(page_access_token)
+            data = token_info.get('data', {})
+            return data.get('scopes', [])
+        except Exception as e:
+            print(f"Warning: Could not check page token permissions: {str(e)}")
+            return []
+
+    def get_all_page_tokens_with_permissions(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get all page access tokens with their permissions and expiry info.
+
+        Returns:
+            Dictionary of page tokens with metadata
+        """
+        try:
+            # Get all pages
+            pages_data = self.get_user_pages()
+            page_tokens_info = {}
+
+            if 'data' in pages_data:
+                for page in pages_data['data']:
+                    page_id = page['id']
+                    page_name = page.get('name', 'Unknown')
+                    page_token = page.get('access_token')
+
+                    if page_token:
+                        # Get token info
+                        token_info = self.get_page_token_info(page_token)
+                        data = token_info.get('data', {})
+
+                        page_tokens_info[page_id] = {
+                            'page_name': page_name,
+                            'page_access_token': page_token,
+                            'scopes': data.get('scopes', []),
+                            'expires_at': data.get('expires_at'),
+                            'is_valid': data.get('is_valid', False),
+                            'instagram_business_account': page.get('instagram_business_account')
+                        }
+
+            return page_tokens_info
+
+        except Exception as e:
+            print(f"Warning: Could not get page tokens with permissions: {str(e)}")
+            return {}
 
     def get_instagram_user_info(self, instagram_account_id: str) -> Dict[str, Any]:
         """
@@ -482,6 +588,38 @@ def main():
                 print("This token is a long-lived token (60 days)")
                 print("You can refresh it using the refresh_access_token() method")
                 print("Facebook automatically refreshes tokens when they're used and still valid")
+
+                # Display page token information with permissions for Instagram
+                if current_platform == 'instagram' and result['tokens'].get('page_access_token'):
+                    page_token = result['tokens']['page_access_token']
+                    page_id = result['accounts']['instagram'][0]['page_id']
+
+                    print(f"\n📋 PAGE ACCESS TOKEN DETAILS:")
+                    print(f"Page ID: {page_id}")
+                    print(f"Page Access Token: {page_token[:20]}... (truncated)")
+
+                    # Check permissions
+                    permissions = oauth.check_page_token_permissions(page_token)
+                    if permissions:
+                        print(f"Permissions: {', '.join(permissions)}")
+
+                        # Highlight posting permissions
+                        posting_permissions = [p for p in permissions if any(perm in p for perm in ['publish', 'manage_posts', 'manage_engagement'])]
+                        if posting_permissions:
+                            print(f"✅ Posting Permissions: {', '.join(posting_permissions)}")
+                        else:
+                            print("⚠️ No posting permissions detected")
+
+                    # Check token expiry
+                    token_info = oauth.get_page_token_info(page_token)
+                    if token_info.get('data', {}).get('is_valid', False):
+                        expires_at = token_info['data'].get('expires_at')
+                        if expires_at:
+                            from datetime import datetime
+                            expiry_date = datetime.fromtimestamp(expires_at).strftime('%Y-%m-%d %H:%M:%S')
+                            print(f"Token Expires: {expiry_date}")
+                    else:
+                        print("⚠️ Token may not be valid")
 
                 # Save tokens to file for later use
                 filename = f"oauth_tokens_{current_platform}.json"

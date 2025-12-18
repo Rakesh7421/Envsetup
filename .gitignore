@@ -1,4 +1,5 @@
 Oauth/.env
-
+!Oauth/.env_copy
 
 oauth_tokens_*.json
+!oauth_tokens_*_copy.json
