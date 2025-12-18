@@ -1,2 +1,6 @@
 timestamp,platform,content_hash,content_id,title,success,error,post_id
 2025-12-18T08:14:35.039647,test_platform,89b79005d323d8a967d083c1d25b022d,89b79005d323d8a9,Test Content for Redundancy Check,True,,test_post_123
+2025-12-18T11:31:12.157590,facebook,9ca5d6e7cd4b23316d4c5043ab8a8431,9ca5d6e7cd4b2331,A Bellicose Trump Points Fingers in Defending His ,False,"{""error"":{""message"":""Invalid OAuth access token - Cannot parse access token"",""type"":""OAuthException"",""code"":190,""fbtrace_id"":""AvPfjEhMeK7ja1dmWsNaSKQ""}}",
+2025-12-18T11:31:12.157863,instagram,9ca5d6e7cd4b23316d4c5043ab8a8431,9ca5d6e7cd4b2331,A Bellicose Trump Points Fingers in Defending His ,False,redundant_content,
+2025-12-18T11:31:42.511713,facebook,c9a541b63851195780cbbc280a552550,c9a541b638511957,Boys to be sent on courses to tackle misogyny in s,False,"{""error"":{""message"":""Invalid OAuth access token - Cannot parse access token"",""type"":""OAuthException"",""code"":190,""fbtrace_id"":""AZpkfVR2Hoi56II2mXEu9c5""}}",
+2025-12-18T11:31:42.511982,instagram,c9a541b63851195780cbbc280a552550,c9a541b638511957,Boys to be sent on courses to tackle misogyny in s,False,redundant_content,

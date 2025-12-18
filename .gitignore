@@ -13,8 +13,8 @@ oauth_tokens_*.json
 
 
 
-
-
+integration_report*.json
+validation_test_report*.json
 
 publisher/content/*.json
 *.pyc

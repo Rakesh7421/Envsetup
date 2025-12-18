@@ -10,7 +10,7 @@ import time
 from typing import List, Dict, Any, Optional
 from poster import PlatformPoster
 from content_server import ContentServer
-from fetch_content import RSSContentFetcher
+from fetch_content import ContentFetcher
 
 class PublisherApp:
     """
@@ -23,7 +23,7 @@ class PublisherApp:
         """
         self.poster = PlatformPoster()
         self.content_server = ContentServer()
-        self.rss_fetcher = RSSContentFetcher()
+        self.rss_fetcher = ContentFetcher()
 
         # Default RSS feeds to monitor
         self.default_rss_feeds = [
