@@ -1,0 +1,2 @@
+timestamp,platform,content_hash,content_id,title,success,error,post_id
+2025-12-18T08:14:35.039647,test_platform,89b79005d323d8a967d083c1d25b022d,89b79005d323d8a9,Test Content for Redundancy Check,True,,test_post_123

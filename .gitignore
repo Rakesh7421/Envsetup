@@ -3,3 +3,19 @@ Oauth/.env
 
 oauth_tokens_*.json
 !oauth_tokens_*_copy.json
+
+
+
+
+
+
+
+
+
+
+
+
+
+publisher/content/*.json
+*.pyc
+test*.py

@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 Enhanced Facebook/Instagram OAuth Script
@@ -169,8 +168,23 @@ class EnhancedOAuthHandler:
             api_url = f"https://graph.facebook.com/me/accounts?access_token={self.user_access_token}"
             response = requests.get(api_url)
             response.raise_for_status()
-            return response.json()
+            pages_data = response.json()
+
+            # Log the number of pages found
+            if 'data' in pages_data:
+                print(f"📋 Found {len(pages_data['data'])} Facebook pages")
+                for page in pages_data['data']:
+                    print(f"  - {page.get('name', 'Unnamed Page')} (ID: {page['id']})")
+            else:
+                print("📋 No Facebook pages found or unexpected response format")
+
+            return pages_data
         except requests.exceptions.RequestException as e:
+            print(f"❌ Failed to get user pages: {str(e)}")
+            print("💡 This could be due to:")
+            print("   - Missing 'pages_show_list' permission")
+            print("   - Invalid access token")
+            print("   - User has no Facebook pages")
             raise requests.exceptions.RequestException(
                 f"Failed to get user pages: {str(e)}"
             ) from e
@@ -264,15 +278,92 @@ class EnhancedOAuthHandler:
             print(f"Warning: Could not refresh token: {str(e)}")
             return None
 
+    def extract_ids_from_token_debug(self) -> Dict[str, Any]:
+        """
+        Extract page ID and Instagram account ID from token debug information.
+        This is used as a fallback when regular methods don't find pages.
+
+        Returns:
+            Dictionary containing extracted IDs
+        """
+        if not self.user_access_token:
+            return {'page_id': None, 'instagram_account_id': None}
+
+        try:
+            debug_url = f"https://graph.facebook.com/debug_token"
+            params = {
+                'input_token': self.user_access_token,
+                'access_token': self.app_access_token or f"{self.client_id}|{self.client_secret}"
+            }
+            response = requests.get(debug_url, params=params)
+            response.raise_for_status()
+            debug_info = response.json()
+
+            page_id = None
+            instagram_account_id = None
+
+            # Look through granular scopes for page and instagram IDs
+            granular_scopes = debug_info.get('data', {}).get('granular_scopes', [])
+
+            for scope in granular_scopes:
+                if scope.get('scope') in ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts', 'pages_manage_engagement']:
+                    target_ids = scope.get('target_ids', [])
+                    if target_ids and not page_id:
+                        page_id = target_ids[0]
+                        print(f"🎯 Found Page ID from token debug: {page_id}")
+
+                elif scope.get('scope') in ['instagram_basic', 'instagram_manage_comments', 'instagram_manage_insights', 'instagram_content_publish']:
+                    target_ids = scope.get('target_ids', [])
+                    if target_ids and not instagram_account_id:
+                        instagram_account_id = target_ids[0]
+                        print(f"🎯 Found Instagram Account ID from token debug: {instagram_account_id}")
+
+            return {
+                'page_id': page_id,
+                'instagram_account_id': instagram_account_id
+            }
+
+        except Exception as e:
+            print(f"Warning: Could not extract IDs from token debug: {str(e)}")
+            return {'page_id': None, 'instagram_account_id': None}
+
     def save_tokens_to_file(self, result: Dict[str, Any], filename: str = 'oauth_tokens.json') -> None:
         """Save tokens and account info to a file for later use"""
         try:
+            # Initialize variables
+            user_access_token = result['tokens'].get('user_access_token')
+            page_access_token = result['tokens'].get('page_access_token')
+            instagram_account_id = None
+            page_id = None
+
+            # Handle Instagram platform
+            if result['platform'] == 'instagram' and result['accounts'].get('instagram'):
+                instagram_accounts = result['accounts']['instagram']
+                if instagram_accounts:
+                    instagram_account_id = instagram_accounts[0].get('id')
+                    page_id = instagram_accounts[0].get('page_id')
+
+            # Handle Facebook platform - get first page if available
+            elif result['platform'] == 'facebook' and result['accounts'].get('pages'):
+                pages = result['accounts']['pages']
+                if pages:
+                    page_id = pages[0].get('id')
+                    # Try to get page access token if available
+                    if not page_access_token:
+                        page_access_token = pages[0].get('access_token')
+
+            # NEW: Fallback - Use IDs from token debug extraction if not found through regular methods
+            if not instagram_account_id and self.instagram_account_id:
+                instagram_account_id = self.instagram_account_id
+            if not page_id and self.page_id:
+                page_id = self.page_id
+
             with open(filename, 'w') as f:
                 json.dump({
-                    'user_access_token': result['tokens'].get('user_access_token'),
-                    'page_access_token': result['tokens'].get('page_access_token'),
-                    'instagram_account_id': result['accounts'].get('instagram', [{}])[0].get('id') if result['accounts'].get('instagram') else None,
-                    'page_id': result['accounts'].get('instagram', [{}])[0].get('page_id') if result['accounts'].get('instagram') else None,
+                    'user_access_token': user_access_token,
+                    'page_access_token': page_access_token,
+                    'instagram_account_id': instagram_account_id,
+                    'page_id': page_id,
                     'platform': result['platform'],
                     'timestamp': time.time()
                 }, f, indent=2)
@@ -413,13 +504,14 @@ class EnhancedOAuthHandler:
                 f"Failed to get Instagram user info: {str(e)}"
             ) from e
 
-    def complete_oauth_flow(self, auth_code: str, platform: str = 'instagram') -> Dict[str, Any]:
+    def complete_oauth_flow(self, auth_code: str, platform: str = 'both') -> Dict[str, Any]:
         """
         Complete the entire OAuth flow from authorization code to getting all account info.
+        Now supports unified authentication for both Facebook and Instagram.
 
         Args:
             auth_code: The authorization code from the OAuth redirect
-            platform: Either 'facebook' or 'instagram'
+            platform: Either 'facebook', 'instagram', or 'both' (default)
 
         Returns:
             Dictionary containing all collected information
@@ -438,13 +530,13 @@ class EnhancedOAuthHandler:
             token_data = self.exchange_code_for_token(auth_code, platform)
             result['tokens']['user_access_token'] = self.user_access_token
 
-            # Step 2: Get user pages
+            # Step 2: Get user pages (always do this for both platforms)
             print("📋 Fetching user pages...")
             pages_data = self.get_user_pages()
             result['accounts']['pages'] = pages_data.get('data', [])
 
-            # Step 3: Find Instagram accounts (if Instagram platform)
-            if platform == 'instagram':
+            # Step 3: Process based on platform
+            if platform in ['instagram', 'both']:
                 print("📸 Finding Instagram accounts...")
                 instagram_accounts = self.get_instagram_accounts()
                 result['accounts']['instagram'] = instagram_accounts
@@ -467,6 +559,81 @@ class EnhancedOAuthHandler:
                     print(f"✅ Page ID: {self.page_id}")
                     print(f"✅ Page Access Token: {page_token[:20]}... (truncated)")
 
+            # For Facebook platform or if no Instagram accounts found, use first Facebook page
+            if platform in ['facebook', 'both']:
+                if not self.page_id and result['accounts']['pages']:
+                    first_page = result['accounts']['pages'][0]
+                    self.page_id = first_page['id']
+
+                    # Get page access token if not already set
+                    if not result['tokens'].get('page_access_token'):
+                        page_token = first_page.get('access_token')
+                        if page_token:
+                            result['tokens']['page_access_token'] = page_token
+                            print(f"✅ Facebook Page ID: {self.page_id}")
+                            print(f"✅ Page Access Token: {page_token[:20]}... (truncated)")
+                        else:
+                            print(f"✅ Facebook Page ID: {self.page_id} (no separate page token available)")
+
+            # NEW: Fallback - Extract IDs from token debug info if not found through regular methods
+            if (platform in ['instagram', 'both'] and not self.instagram_account_id) or \
+               (platform in ['facebook', 'both'] and not self.page_id):
+                print("\n🔍 No pages found through regular methods, checking token debug info...")
+                debug_ids = self.extract_ids_from_token_debug()
+
+                if debug_ids['page_id'] and not self.page_id:
+                    self.page_id = debug_ids['page_id']
+                    print(f"✅ Found Page ID from token debug: {self.page_id}")
+
+                    # Try to get page access token for this page
+                    try:
+                        page_token = self.get_page_access_token(self.page_id)
+                        if page_token:
+                            result['tokens']['page_access_token'] = page_token
+                            print(f"✅ Page Access Token: {page_token[:20]}... (truncated)")
+                    except:
+                        print(f"⚠️ Could not get page access token for page {self.page_id}")
+
+                if debug_ids['instagram_account_id'] and not self.instagram_account_id:
+                    self.instagram_account_id = debug_ids['instagram_account_id']
+                    print(f"✅ Found Instagram Account ID from token debug: {self.instagram_account_id}")
+
+                    # Add to result for saving
+                    if 'instagram' not in result['accounts']:
+                        result['accounts']['instagram'] = [{
+                            'id': self.instagram_account_id,
+                            'page_id': self.page_id
+                        }]
+
+            # NEW: Try to get page access token for the page ID we found
+            if self.page_id and not result['tokens'].get('page_access_token'):
+                print(f"\n🔑 Attempting to get page access token for page {self.page_id}...")
+                try:
+                    # Try to get page access token via Graph API
+                    api_url = f"https://graph.facebook.com/{self.page_id}"
+                    params = {
+                        'access_token': self.user_access_token,
+                        'fields': 'access_token',
+                        'metadata': '1'
+                    }
+                    response = requests.get(api_url, params=params)
+
+                    if response.status_code == 200:
+                        page_data = response.json()
+                        if 'access_token' in page_data:
+                            page_token = page_data['access_token']
+                            result['tokens']['page_access_token'] = page_token
+                            print(f"✅ Found page access token: {page_token[:20]}...")
+                        else:
+                            print("ℹ️  No separate page access token found, will use user access token")
+                    else:
+                        print(f"⚠️  Could not get page access token: {response.status_code}")
+                        print("ℹ️  Will use user access token for posting")
+
+                except Exception as e:
+                    print(f"⚠️  Could not get page access token: {str(e)}")
+                    print("ℹ️  Will use user access token for posting")
+
             result['success'] = True
             print("🎉 OAuth flow completed successfully!")
 
@@ -478,13 +645,15 @@ class EnhancedOAuthHandler:
 
 def main():
     """
-    Main function with interactive OAuth flow completion.
+    Main function with simplified unified OAuth flow.
+    Now requires only ONE authentication for both Facebook and Instagram access.
     """
     print("🔑 Enhanced Facebook/Instagram OAuth Handler")
     print("=" * 60)
     print("This script handles the complete OAuth flow including:")
+    print("- Single authentication for both Facebook and Instagram")
     print("- Token exchange with long-lived token generation")
-    print("- Page and Instagram account discovery")
+    print("- Automatic page and Instagram account discovery")
     print("- Automatic token refresh handling")
     print()
 
@@ -493,145 +662,115 @@ def main():
         oauth = EnhancedOAuthHandler()
         print("✅ OAuth handler initialized successfully")
 
-        # Let user choose platform
-        print("\n🎯 Choose authentication option:")
+        # Simplified choice - just ask for platform preference but use unified auth
+        print("\n🎯 What do you want to access?")
         print("1. Facebook only")
         print("2. Instagram only")
-        print("3. Both Facebook and Instagram")
+        print("3. Both Facebook and Instagram (recommended)")
 
-        choice = input("Enter your choice (1/2/3): ").strip()
+        choice = input("Enter your choice (1/2/3): ").strip() or '3'
 
         if choice == '1':
             platform = 'facebook'
         elif choice == '2':
             platform = 'instagram'
-        elif choice == '3':
-            platform = 'both'
         else:
-            print("❌ Invalid choice. Please use 1, 2, or 3")
+            platform = 'both'
+
+        print(f"\n🔄 Processing unified authentication for {platform} access...")
+
+        # Generate auth URL with comprehensive permissions for both platforms
+        auth_url = oauth.get_auth_url('instagram')  # Use Instagram scope which includes Facebook permissions
+        print(f"\n🔗 Authorization URL: {auth_url}")
+        print("📝 This single authentication will give access to both Facebook and Instagram")
+
+        # Open in browser
+        try:
+            webbrowser.open(auth_url)
+            print("🌐 Opening authorization URL in your browser...")
+        except:
+            print("📝 Please copy and paste the URL above into your browser")
+
+        # Get authorization code from user - ONLY ONCE
+        auth_code = input(f"\n📥 After authorizing, paste the full redirect URL here: ").strip()
+
+        if not auth_code:
+            print("❌ No URL provided")
             return
 
-        # Handle both platforms case
-        results = []
-        if platform == 'both':
-            platforms_to_auth = ['facebook', 'instagram']
-        else:
-            platforms_to_auth = [platform]
+        # Extract code from URL
+        try:
+            parsed_url = urlparse(auth_code)
+            query_params = parse_qs(parsed_url.query)
+            code = query_params.get('code', [None])[0]
 
-        for current_platform in platforms_to_auth:
-            print(f"\n🔄 Processing {current_platform} authentication...")
+            if not code:
+                print("❌ No authorization code found in the URL")
+                return
+        except:
+            # Maybe user pasted just the code
+            code = auth_code
 
-            # Generate and display auth URL
-            auth_url = oauth.get_auth_url(current_platform)
-            print(f"\n🔗 {current_platform.capitalize()} Authorization URL: {auth_url}")
+        print(f"\n🔑 Using authorization code: {code[:20]}... (truncated)")
 
-            # Open in browser
-            try:
-                webbrowser.open(auth_url)
-                print("🌐 Opening authorization URL in your browser...")
-            except:
-                print("📝 Please copy and paste the URL above into your browser")
+        # Complete the unified OAuth flow - ONLY ONCE
+        print(f"\n🚀 Completing unified OAuth flow...")
+        result = oauth.complete_oauth_flow(code, platform)
 
-            # Get authorization code from user
-            auth_code = input(f"\n📥 After authorizing {current_platform}, paste the full redirect URL here: ").strip()
+        if result['success']:
+            print(f"\n📊 Unified OAuth Flow Results:")
+            print(f"Platform: {result['platform']}")
+            print(f"User Access Token: {result['tokens'].get('user_access_token', 'N/A')[:20]}...")
 
-            if not auth_code:
-                print("❌ No URL provided")
-                continue
+            # Show Facebook page info if available
+            if result['accounts']['pages']:
+                print(f"\n📋 Facebook Pages Found: {len(result['accounts']['pages'])}")
+                for i, page in enumerate(result['accounts']['pages']):
+                    print(f"  {i+1}. {page.get('name', 'Unnamed Page')} (ID: {page['id']})")
 
-            # Extract code from URL
-            try:
-                parsed_url = urlparse(auth_code)
-                query_params = parse_qs(parsed_url.query)
-                code = query_params.get('code', [None])[0]
+                if oauth.page_id:
+                    print(f"\n✅ Selected Page ID: {oauth.page_id}")
 
-                if not code:
-                    print("❌ No authorization code found in the URL")
-                    continue
-            except:
-                # Maybe user pasted just the code
-                code = auth_code
+            # Show Instagram info if available
+            if result['accounts'].get('instagram'):
+                insta_accounts = result['accounts']['instagram']
+                print(f"\n📸 Instagram Accounts Found: {len(insta_accounts)}")
 
-            print(f"\n🔑 Using authorization code: {code[:20]}... (truncated)")
+                for i, account in enumerate(insta_accounts):
+                    print(f"  {i+1}. Instagram ID: {account['id']} (Connected to Page: {account['page_name']})")
 
-            # Complete the full OAuth flow
-            print(f"\n🚀 Completing {current_platform} OAuth flow...")
-            result = oauth.complete_oauth_flow(code, current_platform)
-            results.append((current_platform, result))
+                if oauth.instagram_account_id:
+                    print(f"\n✅ Selected Instagram Account ID: {oauth.instagram_account_id}")
 
-        # Process and display results for all platforms
-        all_success = True
-        for current_platform, result in results:
-            if result['success']:
-                print(f"\n📊 {current_platform.capitalize()} OAuth Flow Results:")
-                print(f"Platform: {result['platform']}")
-                print(f"User Access Token: {result['tokens'].get('user_access_token', 'N/A')[:20]}...")
+            # Show token info
+            if result['tokens'].get('page_access_token'):
+                page_token = result['tokens']['page_access_token']
+                print(f"\n🔑 Page Access Token: {page_token[:20]}... (truncated)")
 
-                if current_platform == 'instagram' and result['accounts'].get('instagram'):
-                    insta_accounts = result['accounts']['instagram']
-                    print(f"Instagram Accounts Found: {len(insta_accounts)}")
+                # Check permissions
+                permissions = oauth.check_page_token_permissions(page_token)
+                if permissions:
+                    print(f"Permissions: {', '.join(permissions)}")
+                    posting_permissions = [p for p in permissions if any(perm in p for perm in ['publish', 'manage_posts', 'manage_engagement'])]
+                    if posting_permissions:
+                        print(f"✅ Posting Permissions: {', '.join(posting_permissions)}")
 
-                    for i, account in enumerate(insta_accounts):
-                        print(f"\nInstagram Account {i+1}:")
-                        print(f"  ID: {account['id']}")
-                        print(f"  Connected to Page: {account['page_name']} (ID: {account['page_id']})")
-                        print(f"  Page Access Token: {account['page_access_token'][:20]}...")
-
-                    if 'instagram_user_info' in result['accounts']:
-                        user_info = result['accounts']['instagram_user_info']
-                        print(f"\nInstagram User Info:")
-                        print(f"  Username: {user_info.get('username', 'N/A')}")
-                        print(f"  Followers: {user_info.get('followers_count', 'N/A')}")
-                        print(f"  Media Count: {user_info.get('media_count', 'N/A')}")
-
-                print(f"\n🔄 {current_platform.capitalize()} Token Information:")
-                print("This token is a long-lived token (60 days)")
-                print("You can refresh it using the refresh_access_token() method")
-                print("Facebook automatically refreshes tokens when they're used and still valid")
-
-                # Display page token information with permissions for Instagram
-                if current_platform == 'instagram' and result['tokens'].get('page_access_token'):
-                    page_token = result['tokens']['page_access_token']
-                    page_id = result['accounts']['instagram'][0]['page_id']
-
-                    print(f"\n📋 PAGE ACCESS TOKEN DETAILS:")
-                    print(f"Page ID: {page_id}")
-                    print(f"Page Access Token: {page_token[:20]}... (truncated)")
-
-                    # Check permissions
-                    permissions = oauth.check_page_token_permissions(page_token)
-                    if permissions:
-                        print(f"Permissions: {', '.join(permissions)}")
-
-                        # Highlight posting permissions
-                        posting_permissions = [p for p in permissions if any(perm in p for perm in ['publish', 'manage_posts', 'manage_engagement'])]
-                        if posting_permissions:
-                            print(f"✅ Posting Permissions: {', '.join(posting_permissions)}")
-                        else:
-                            print("⚠️ No posting permissions detected")
-
-                    # Check token expiry
-                    token_info = oauth.get_page_token_info(page_token)
-                    if token_info.get('data', {}).get('is_valid', False):
-                        expires_at = token_info['data'].get('expires_at')
-                        if expires_at:
-                            from datetime import datetime
-                            expiry_date = datetime.fromtimestamp(expires_at).strftime('%Y-%m-%d %H:%M:%S')
-                            print(f"Token Expires: {expiry_date}")
-                    else:
-                        print("⚠️ Token may not be valid")
-
-                # Save tokens to file for later use
-                filename = f"oauth_tokens_{current_platform}.json"
-                oauth.save_tokens_to_file(result, filename)
+            # Save tokens to appropriate files
+            if platform == 'both':
+                # Save to both files for compatibility
+                oauth.save_tokens_to_file(result, 'oauth_tokens_facebook.json')
+                oauth.save_tokens_to_file(result, 'oauth_tokens_instagram.json')
+                print(f"\n💾 Tokens saved to both 'oauth_tokens_facebook.json' and 'oauth_tokens_instagram.json'")
             else:
-                print(f"❌ {current_platform.capitalize()} OAuth flow failed: {result.get('error', 'Unknown error')}")
-                all_success = False
+                filename = f"oauth_tokens_{platform}.json"
+                oauth.save_tokens_to_file(result, filename)
+                print(f"\n💾 Tokens saved to '{filename}'")
 
-        if all_success and len(results) > 1:
-            print(f"\n🎉 All OAuth flows completed successfully for {len(results)} platforms!")
-        elif all_success:
-            print(f"\n🎉 OAuth flow completed successfully!")
+            print(f"\n🎉 Unified OAuth flow completed successfully!")
+            print("💡 You now have access to both Facebook and Instagram with a single authentication!")
+
+        else:
+            print(f"❌ OAuth flow failed: {result.get('error', 'Unknown error')}")
 
     except Exception as e:
         print(f"❌ Error: {str(e)}")
