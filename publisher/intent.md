@@ -21,7 +21,7 @@ check status before act
             based on the output proceed, keep note u shall never trigger oauth because it may disrupt the existing tokens ✅ IMPLEMENTED
 
 ###     Content_fetch ✅ FULLY IMPLEMENTED
-
+         Restrict posts that doesnt have any media ❌ Failed
          Enhance the `publisher/fetch_content.py` module to fetch and validate content from the `/workspaces/Envsetup/publisher/fetch_contentt/*.py` feed, ensuring the feed contains at least one image or video. The implementation should: ✅ ALL COMPLETED
 
          1. Parse and validate the feed structure, confirming it meets the minimum media requirement ✅ DONE

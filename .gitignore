@@ -11,8 +11,7 @@ oauth_tokens_*.json
 
 
 
-
-
+content/*.json
 integration_report*.json
 validation_test_report*.json
 
