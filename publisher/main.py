@@ -509,42 +509,20 @@ def main():
         publisher = PublisherApp()
         print("✅ Publisher application initialized")
 
-        # Show main menu
-        while True:
-            print("\n🎯 Main Menu:")
-            print("1. Run automated publishing workflow")
-            print("2. Manual content creation and publishing")
-            print("3. Check token status")
-            print("4. Exit")
+        # Automatically run the publishing workflow
+        print("\n🚀 Running automated publishing workflow...")
+        results = publisher.run_publishing_workflow(max_items=1)  # Limit to 1 item for demo
 
-            choice = input("\nEnter your choice (1-4): ").strip()
+        print(f"\n📊 Summary:")
+        print(f"   Processed {len(results)} content items")
 
-            if choice == '1':
-                # Run automated workflow with limited items for demo
-                print("\n🚀 Running automated publishing workflow...")
-                results = publisher.run_publishing_workflow(max_items=1)  # Limit to 1 item for demo
+        for i, result in enumerate(results, 1):
+            print(f"\n   Item {i}: {result['content']['title']}")
+            for platform, platform_result in result['platforms'].items():
+                status = "✅ Published" if platform_result['post_result'].get('success', False) else "❌ Failed"
+                print(f"      {platform.capitalize()}: {status}")
 
-                print(f"\n📊 Summary:")
-                print(f"   Processed {len(results)} content items")
-
-                for i, result in enumerate(results, 1):
-                    print(f"\n   Item {i}: {result['content']['title']}")
-                    for platform, platform_result in result['platforms'].items():
-                        status = "✅ Published" if platform_result['post_result'].get('success', False) else "❌ Failed"
-                        print(f"      {platform.capitalize()}: {status}")
-
-            elif choice == '2':
-                publisher.manual_publishing_mode()
-
-            elif choice == '3':
-                publisher.check_token_status()
-
-            elif choice == '4':
-                print("👋 Goodbye!")
-                break
-
-            else:
-                print("❌ Invalid choice. Please enter 1, 2, 3, or 4.")
+        print("\n🎉 Publishing workflow completed successfully!")
 
     except Exception as e:
         print(f"❌ Fatal error: {str(e)}")

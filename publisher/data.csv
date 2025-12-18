@@ -8,3 +8,7 @@ timestamp,platform,content_hash,content_id,title,success,error,post_id
 2025-12-18T11:52:55.185643,instagram,9ca5d6e7cd4b23316d4c5043ab8a8431,9ca5d6e7cd4b2331,A Bellicose Trump Points Fingers in Defending His ,False,redundant_content,
 2025-12-18T11:53:25.186518,facebook,c9a541b63851195780cbbc280a552550,c9a541b638511957,Boys to be sent on courses to tackle misogyny in s,False,redundant_content,
 2025-12-18T11:53:25.186807,instagram,c9a541b63851195780cbbc280a552550,c9a541b638511957,Boys to be sent on courses to tackle misogyny in s,False,redundant_content,
+2025-12-18T12:44:04.468614,facebook,c13736d211985102d5c539038b8d521f,c13736d211985102,6 Takeaways From Trump’s Address to the Nation,False,"{""error"":{""message"":""Invalid OAuth access token - Cannot parse access token"",""type"":""OAuthException"",""code"":190,""fbtrace_id"":""A6nwMHAQBVDI4xOzhRTi1i6""}}",
+2025-12-18T12:44:04.468956,instagram,c13736d211985102d5c539038b8d521f,c13736d211985102,6 Takeaways From Trump’s Address to the Nation,False,redundant_content,
+2025-12-18T12:44:34.997029,facebook,2b17ef8b7bfa250e5111829c8efab916,2b17ef8b7bfa250e,Zelensky gives stark warning as EU leaders start c,False,"{""error"":{""message"":""Invalid OAuth access token - Cannot parse access token"",""type"":""OAuthException"",""code"":190,""fbtrace_id"":""AKFkNunC1XGmhSk542Qcpd4""}}",
+2025-12-18T12:44:34.997368,instagram,2b17ef8b7bfa250e5111829c8efab916,2b17ef8b7bfa250e,Zelensky gives stark warning as EU leaders start c,False,redundant_content,
